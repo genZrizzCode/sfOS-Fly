@@ -66,8 +66,6 @@ const SCRAMJET_FILES = {
   all: `${SCRAMJET_PREFIX}scramjet.all.js`,
   sync: `${SCRAMJET_PREFIX}scramjet.sync.js`,
 };
-const UV_PREFIX = "/uv/";
-const UV_SW = `${UV_PREFIX}sw.js`;
 
 const windows = new Map();
 document.querySelectorAll(".window").forEach((win) => {
@@ -83,7 +81,6 @@ let scramjetReady = false;
 let scramjetController = null;
 let duckduckgoScramjetFrame = null;
 let bareMuxInitPromise = null;
-let uvInitPromise = null;
 
 const pad = (value) => String(value).padStart(2, "0");
 
@@ -429,55 +426,6 @@ const buildScramjetUrl = (input) => {
   }
 };
 
-const getUvEncoder = () => {
-  const config = window.__uv$config;
-  if (config && typeof config.encodeUrl === "function") {
-    return { prefix: config.prefix || UV_PREFIX, encode: config.encodeUrl };
-  }
-  if (window.Ultraviolet?.codec?.xor?.encode) {
-    return { prefix: UV_PREFIX, encode: window.Ultraviolet.codec.xor.encode };
-  }
-  return { prefix: UV_PREFIX, encode: encodeURIComponent };
-};
-
-const buildUvUrl = (input) => {
-  try {
-    const { prefix, encode } = getUvEncoder();
-    const absolute = new URL(input, window.location.origin);
-    return `${window.location.origin}${prefix}${encode(absolute.href)}`;
-  } catch {
-    return input;
-  }
-};
-
-const ensureUv = async () => {
-  if (uvInitPromise) return uvInitPromise;
-  uvInitPromise = (async () => {
-    if (!("serviceWorker" in navigator)) {
-      log("UV unavailable: service workers not supported.");
-      return false;
-    }
-    if (!window.__uv$config || !window.Ultraviolet) {
-      log("UV unavailable: core bundle not loaded.");
-      return false;
-    }
-    const transportReady = await ensureBareMuxTransport();
-    if (!transportReady) {
-      log("UV unavailable: transport init failed.");
-      return false;
-    }
-    try {
-      const registration = await navigator.serviceWorker.register(UV_SW);
-      await waitForServiceWorkerActivation(registration);
-      return true;
-    } catch (error) {
-      log(`UV init failed: ${error.message}`);
-      return false;
-    }
-  })();
-  return uvInitPromise;
-};
-
 const updateScramjetTargets = async () => {
   if (!scramjetTargets.length) return;
   if (!state.deoxyEnabled) {
@@ -490,13 +438,13 @@ const updateScramjetTargets = async () => {
   }
   const ready = await ensureScramjet();
   if (!ready) {
-    log("Scramjet unavailable. Falling back to UV links.");
+    log("Scramjet unavailable. Using direct links.");
   }
   scramjetTargets.forEach((link) => {
     if (link.dataset.scramjetTarget) {
       link.href = ready
         ? buildScramjetUrl(link.dataset.scramjetTarget)
-        : buildUvUrl(link.dataset.scramjetTarget);
+        : link.dataset.scramjetTarget;
     }
   });
 };
@@ -516,12 +464,7 @@ const updateDuckDuckGoFrame = async () => {
     duckduckgoFrame.src = buildScramjetUrl("https://duckduckgo.com/");
     return;
   }
-  const uvReady = await ensureUv();
-  if (uvReady) {
-    log("Scramjet unavailable. DuckDuckGo using UV fallback.");
-    duckduckgoFrame.src = buildUvUrl("https://duckduckgo.com/");
-    return;
-  }
+  log("Scramjet unavailable. DuckDuckGo using direct link.");
   duckduckgoFrame.src = "https://duckduckgo.com/";
 };
 
@@ -1480,14 +1423,8 @@ if (tunnelForm) {
         if (ready) {
           nextUrl = buildScramjetUrl(url);
         } else {
-          const uvReady = await ensureUv();
-          if (uvReady) {
-            nextUrl = buildUvUrl(url);
-            log("Scramjet unavailable. Tunnel opened with UV fallback.");
-          } else {
-            nextUrl = url;
-            log("Scramjet unavailable. UV fallback unavailable; opening direct.");
-          }
+          nextUrl = url;
+          log("Scramjet unavailable. Tunnel opened direct.");
         }
       }
       window.open(nextUrl, "_blank", "noopener");
