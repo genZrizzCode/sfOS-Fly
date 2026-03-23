@@ -61,6 +61,8 @@ const SCRAMJET_BARE_MUX = "/bare-mux/index.mjs";
 const SCRAMJET_BARE_MUX_WORKER = "/bare-mux/worker.js";
 const SCRAMJET_TRANSPORT = "/epoxy/index.mjs";
 const SCRAMJET_WISP = "wss://wisp.mercurywork.shop/";
+const SCRAMJET_BARE_TRANSPORT = "/bare-client/transport.js";
+const SCRAMJET_BARE_SERVER = "/bare/";
 const SCRAMJET_FILES = {
   wasm: `${SCRAMJET_PREFIX}scramjet.wasm.wasm`,
   all: `${SCRAMJET_PREFIX}scramjet.all.js`,
@@ -347,8 +349,24 @@ const ensureBareMuxTransport = async () => {
   bareMuxInitPromise = (async () => {
     const module = await import(SCRAMJET_BARE_MUX);
     const connection = new module.BareMuxConnection(SCRAMJET_BARE_MUX_WORKER);
-    await connection.setTransport(SCRAMJET_TRANSPORT, [{ wisp: SCRAMJET_WISP }]);
-    return true;
+    try {
+      await connection.setTransport(SCRAMJET_TRANSPORT, [{ wisp: SCRAMJET_WISP }]);
+      log("BareMux transport: Wisp");
+      return true;
+    } catch (error) {
+      log(`BareMux Wisp failed: ${error.message || String(error)}`);
+    }
+
+    try {
+      await connection.setTransport(SCRAMJET_BARE_TRANSPORT, [
+        { server: SCRAMJET_BARE_SERVER },
+      ]);
+      log("BareMux transport: bare-server-node");
+      return true;
+    } catch (error) {
+      log(`BareMux bare-server failed: ${error.message || String(error)}`);
+      return false;
+    }
   })().catch((error) => {
     log(`BareMux init failed: ${error.message}`);
     return false;

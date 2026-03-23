@@ -3,9 +3,11 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
+const { createBareServer } = require("@nebula-services/bare-server-node");
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8443;
+const bareServer = createBareServer("/bare/");
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -717,6 +719,11 @@ const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url);
   const pathname = parsed.pathname || "/";
 
+  if (bareServer.shouldRoute(req)) {
+    bareServer.routeRequest(req, res);
+    return;
+  }
+
   if (pathname === "/ping") {
     res.writeHead(204, { "Cache-Control": "no-store" });
     res.end();
@@ -735,6 +742,14 @@ const server = http.createServer((req, res) => {
   } else {
     serveStatic(req, res);
   }
+});
+
+server.on("upgrade", (req, socket, head) => {
+  if (bareServer.shouldRoute(req)) {
+    bareServer.routeUpgrade(req, socket, head);
+    return;
+  }
+  socket.destroy();
 });
 
 server.listen(PORT, () => {
