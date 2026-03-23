@@ -587,6 +587,13 @@ function serveStatic(req, res) {
     pathname = "/index.html";
   }
 
+  // Scramjet's bundled defaults sometimes fetch root-level asset URLs like:
+  // `/scramjet.all.js`, `/scramjet.sync.js`, `/scramjet.wasm.wasm`.
+  // In this repo, those assets live under `/scramjet/`.
+  if (pathname === "/scramjet.all.js") pathname = "/scramjet/scramjet.all.js";
+  if (pathname === "/scramjet.sync.js") pathname = "/scramjet/scramjet.sync.js";
+  if (pathname === "/scramjet.wasm.wasm") pathname = "/scramjet/scramjet.wasm.wasm";
+
   const filePath = path.join(ROOT, pathname);
 
   fs.stat(filePath, (err, stat) => {
@@ -752,7 +759,7 @@ server.on("upgrade", (req, socket, head) => {
   socket.destroy();
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`sfOS server running at http://localhost:${PORT}/`);
   console.log(`Deoxy endpoint available at http://localhost:${PORT}/deoxy?target=<url>`);
 });
