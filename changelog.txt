@@ -2,3 +2,4 @@ sfOS changelog
 
 Beta Versions (all compressed into one entry because I'm lazy):
 - Created
+- Added nebula stuff
